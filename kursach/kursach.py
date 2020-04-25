@@ -1,4 +1,3 @@
-
 import sys
 from functools import partial
 from myinterface import *
@@ -8,13 +7,16 @@ import matplotlib.pylab as plt
 from PyQt5.QtCore import Qt,QPointF
 from PyQt5.QtWidgets import QSlider,QGraphicsItem, QGraphicsRectItem, QGraphicsEllipseItem,QGraphicsSceneMouseEvent, QStyleOptionSlider, QStyle, QWidget, QFormLayout, QLabel ,QGraphicsScene,QGraphicsView, QFrame, QColorDialog
 from PyQt5.QtGui import QColor,QBrush,QImage,QPainter,QPen
-
+from fourierTransforms import FourierTransforms
 
 class MyWin(QtWidgets.QMainWindow):
+    
     color = QColor(0,0,0)
     coeffIncreaseX = 1
     coeffIncreaseY = 1
+
     def __init__(self, parent=None):
+
         QtWidgets.QWidget.__init__(self, parent)
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
@@ -53,8 +55,11 @@ class MyWin(QtWidgets.QMainWindow):
         self.ui.pushButton.setToolTip('Создаем выбранную фигуру на сцене')
         self.ui.pushButton_2.clicked.connect(partial(self.changeColorItem,scene = scene))
         self.ui.pushButton_2.setToolTip('Изменить цвет выбранной фигуры')
+
         scene.selectionChanged.connect(partial(self.setCurrentTransform,scene = scene))
+
         self.ui.pushButton_4.clicked.connect(partial(self.makeSpectralProcessing,scene = scene))
+
     def setCurrentTransform(self,scene):
         items = scene.selectedItems()
         for shape in items:
@@ -62,14 +67,17 @@ class MyWin(QtWidgets.QMainWindow):
             self.ui.label_4.setText(str(shape.scale()))   
             self.ui.horizontalSlider_2.setSliderPosition(shape.rotation())
             self.ui.label_3.setText(str(shape.rotation()))
+
     def makeSpectralProcessing(self,scene):
         self.saveScene(scene)
         analysis = FourierTransforms()
         analysis.showSpectr()
+
     def makePhaseProcessing(self,scene):
         self.saveScene(scene)
         analysis = FourierTransforms()
         analysis.showPhaseFreq()
+
     def performScale(self, scene):
         _scale = self.ui.horizontalSlider.value()/20
         items = scene.selectedItems()
@@ -77,18 +85,25 @@ class MyWin(QtWidgets.QMainWindow):
             shape.setTransformOriginPoint(30,30)
             shape.prepareGeometryChange()
             shape.setScale(_scale)
+
     def getIncreaseCoeffY(self):
         self.coeffIncreaseY = self.ui.horizontalSlider_4.value()
+
     def getIncreaseCoeffX(self):
         self.coeffIncreaseX = self.ui.horizontalSlider_3.value()
+
     def showCoeffY(self):
         self.ui.label_7.setText(str(self.ui.horizontalSlider_4.value()))
+
     def showCoeffX(self):
         self.ui.label_8.setText(str(self.ui.horizontalSlider_3.value()))
+
     def showAngle(self):
         self.ui.label_3.setText(str(self.ui.horizontalSlider_2.value()))
+
     def showScale(self):
         self.ui.label_4.setText(str(self.ui.horizontalSlider.value()/20))
+
     def performRotation(self,scene):
         angleOfRotation = self.ui.horizontalSlider_2.value()
         items = scene.selectedItems()
@@ -102,6 +117,7 @@ class MyWin(QtWidgets.QMainWindow):
         for i in items:
             brush = QBrush(self.color)
             i.setBrush(brush)
+
     def saveScene(self,scene):
         area = scene.sceneRect()
         image = QImage(scene.width(),scene.height(), QImage.Format_ARGB32_Premultiplied)
@@ -113,10 +129,12 @@ class MyWin(QtWidgets.QMainWindow):
         painter.end()
     # Save the image to a file.
         image.save("capture.bmp")
+
     def showColorDialog(self):
         self.color = QColorDialog.getColor()
         if self.color.isValid():
             self.ui.frame_2.setStyleSheet("QWidget { background-color: %s}" % self.color.name())
+
     def createSelectedGeometricItem(self,scene):
         if self.ui.radioButton.isChecked()==True:
             brush = QBrush(self.color)
@@ -134,6 +152,7 @@ class MyWin(QtWidgets.QMainWindow):
             elps.setPen(pen)
             elps.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
             scene.addItem(elps)
+
     def createRect (self,scene):
         brush = QBrush(self.color)
         rect = QGraphicsRectItem(30,30,self.coeffIncreaseX*20,self.coeffIncreaseY*20)
@@ -142,6 +161,7 @@ class MyWin(QtWidgets.QMainWindow):
         rect.setPen(pen)
         rect.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
         scene.addItem(rect)
+
     def createElp(self,scene):
         brush = QBrush(self.color)
         elps = QGraphicsEllipseItem(30,30,self.coeffIncreaseX*30,self.coeffIncreaseY*30)
@@ -150,6 +170,7 @@ class MyWin(QtWidgets.QMainWindow):
         elps.setPen(pen)
         elps.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
         scene.addItem(elps)
+
     def closeEvent(self, e):
         result = QtWidgets.QMessageBox.question(self,"Confirm Dialog", "Действительно выйти?", QtWidgets.QMessageBox.Yes 
                                                 |QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
@@ -158,55 +179,7 @@ class MyWin(QtWidgets.QMainWindow):
         else:
             e.ignore()
 
-from PIL import Image
-from scipy.fftpack import fft, fftfreq, fftshift,fftn
-import numpy as np
-from matplotlib import cm
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 
-class FourierTransforms:
-    freqX = 0
-    freqY = 0
-    image = None
-    fft_result = None
-    def __init__(self):
-        self.image = Image.open('capture.bmp')
-        self.image = self.image.convert("F")
-        self.image =np.array(self.image)
-        self.getFreq()
-        self.makefft2()
-    def getImageSize(self):    
-         size = self.image.shape
-         return size
-    def getFreq(self):
-        size_x = self.getImageSize()[1] #размер по х
-        size_y = self.getImageSize()[0] #размер по у
-        self.freqX = fftfreq(size_x,1./(2*size_x))
-        self.freqY = fftfreq(size_y,1./(2*size_y))
-        self.freqX=fftshift(self.freqX)
-        self.freqY= fftshift(self.freqY)
-    def makefft2(self):
-        self.fft_result = fftn(self.image)
-        self.fft_result = fftshift(self.fft_result)
-    def showSpectr(self):
-        fig = plt.figure(1)
-        axes = Axes3D(fig)
-        xgrid, ygrid = np.meshgrid(self.freqX, self.freqY)
-        axes.plot_surface(xgrid, ygrid,np.abs(self.fft_result), rstride=20, cstride=20, cmap = cm.Spectral )
-        fig2 = plt.figure(2)
-        plt.imshow(np.abs(self.fft_result), cmap='Spectral')
-        plt.colorbar()
-        plt.show()
-    def showPhaseFreq(self):
-        fig = plt.figure(1)
-        axes = Axes3D(fig)
-        xgrid, ygrid = np.meshgrid(self.freqX, self.freqY)
-        axes.plot_surface(xgrid, ygrid,np.angle(self.fft_result), rstride=80, cstride=80, cmap = cm.Spectral )
-        fig2= plt.figure(2)
-        plt.imshow(np.angle(self.fft_result), cmap='plasma')
-        plt.colorbar()
-        plt.show()
 if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv) 
     myapp = MyWin()
